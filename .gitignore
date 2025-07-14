@@ -121,3 +121,6 @@ playground.xcworkspace
 # e.g. Configurations.xcconfig
 
 # End of https://www.toptal.com/developers/gitignore/api/python,swift```
+google_credentials.json
+__pycache__/
+.DS_Store

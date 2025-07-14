@@ -8,8 +8,8 @@ from fastapi import FastAPI, Query, HTTPException
 from typing import List, Optional
 
 # Импортируем нашу бизнес-логику и модели данных
-import logic
-from models import DealResponse
+from . import logic
+from .models import DealResponse
 
 # Создаем экземпляр приложения FastAPI
 app = FastAPI(
