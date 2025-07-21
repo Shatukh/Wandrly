@@ -1,49 +1,26 @@
-"""
-Модуль бизнес-логики для приложения Wandrly.
-
-Этот файл содержит все функции, необходимые для поиска и обработки данных
-о рейсах Ryanair. Он не содержит кода для веб-сервера или вывода данных,
-а предоставляет чистую, тестируемую бизнес-логику.
-"""
-
 import json
 import os
 import requests
-import uuid  # Для генерации уникальных ID для каждой поездки
+import uuid
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Tuple
 
-# --- КОНСТАНТЫ И НАСТРОЙКИ ---
-
-# Список аэропортов вылета в Ирландии (используется как заглушка)
+# --- КОНСТАНТЫ ---
 IRISH_AIRPORTS = ["DUB", "SNN", "ORK", "NOC", "KIR"]
-
-# Коды аэропортов для исключения
-UK_DEST_CODES = {
-    "ABZ", "BFS", "BHD", "BHX", "BOH", "BRS", "CWL", "DSA", "DND",
-    "EDI", "EMA", "EXT", "GLA", "HUY", "INV", "LBA", "LDY", "LGW",
-    "LPL", "LTN", "MAN", "NCL", "NQY", "PIK", "SEN", "SOU", "STN"
-}
-
-# --- ПУТИ К ФАЙЛАМ ---
-# Используем ваш путь к проекту
-PROJECT_DIR = "/Users/sergishatukh/Documents/Scripts/Training/Ryanair Deals Script"
-
-# API и файлы кэша
+UK_DEST_CODES = {"ABZ", "BFS", "BHD", "BHX", "BOH", "BRS", "CWL", "DSA", "DND", "EDI", "EMA", "EXT", "GLA", "HUY",
+                 "INV", "LBA", "LDY", "LGW", "LPL", "LTN", "MAN", "NCL", "NQY", "PIK", "SEN", "SOU", "STN"}
+PROJECT_DIR = "/Users/sergishatukh/Documents/Wandrly"  # Обновляем путь на новый
 ROUTES_API_URL = "https://www.ryanair.com/api/views/locate/3/routes"
 AIRPORTS_INFO_API_URL = "https://api.ryanair.com/aggregate/3/common?market=en-gb"
 FARES_MONTHLY_API_URL = "https://www.ryanair.com/api/farfnd/v4/oneWayFares/{origin}/{destination}/cheapestPerDay"
-
-# Полные пути к файлам
 ROUTES_FILE = os.path.join(PROJECT_DIR, "routes.json")
 AIRPORTS_INFO_FILE = os.path.join(PROJECT_DIR, "airports_info.json")
 REQUEST_TIMEOUT = 15
 
 
-# --- ФУНКЦИИ-ПОМОЩНИКИ (ДЛЯ ПОЛУЧЕНИЯ ДАННЫХ) ---
+# --- ФУНКЦИИ-ПОМОЩНИКИ (ПОЛНЫЕ ВЕРСИИ) ---
 
 def get_all_routes() -> List[Dict[str, Any]]:
-    """Загружает все маршруты Ryanair из файла или по API."""
     if os.path.exists(ROUTES_FILE):
         with open(ROUTES_FILE, "r") as f: return json.load(f)
     try:
@@ -59,13 +36,12 @@ def get_all_routes() -> List[Dict[str, Any]]:
 
 
 def get_airport_details() -> Tuple[Dict[str, str], Dict[str, str]]:
-    """Загружает данные и создает словари для названий аэропортов и стран."""
     airport_map, airport_to_country_map = {}, {}
     if os.path.exists(AIRPORTS_INFO_FILE):
         with open(AIRPORTS_INFO_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
     else:
-        print("Не найден локальный файл airports_info.json. Загрузка данных может быть неполной.")
+        print("Не найден локальный файл airports_info.json.")
         return {}, {}
     country_map = {c['code']: c['name'] for c in data.get('countries', [])}
     for airport in data.get('airports', []):
@@ -78,7 +54,6 @@ def get_airport_details() -> Tuple[Dict[str, str], Dict[str, str]]:
 
 
 def get_destinations_from(origin: str, all_routes: List[Dict[str, Any]]) -> List[str]:
-    """Фильтрует направления из указанного аэропорта, исключая UK и Ирландию."""
     destinations = set()
     for route in all_routes:
         if route.get("airportFrom") == origin:
@@ -89,7 +64,6 @@ def get_destinations_from(origin: str, all_routes: List[Dict[str, Any]]) -> List
 
 
 def get_monthly_fares(session: requests.Session, origin: str, destination: str, month: str) -> Dict[str, float]:
-    """Получает самые дешевые тарифы на каждый день указанного месяца."""
     url = FARES_MONTHLY_API_URL.format(origin=origin, destination=destination)
     params = {"outboundMonthOfDate": f"{month}-01", "currency": "EUR"}
     fares_by_date = {}
@@ -105,26 +79,19 @@ def get_monthly_fares(session: requests.Session, origin: str, destination: str, 
         return {}
 
 
-# --- ГЛАВНАЯ ФУНКЦИЯ БИЗНЕС-ЛОГИКИ ---
+# --- ГЛАВНАЯ ФУНКЦИЯ БИЗНЕС-ЛОГИКИ (ОБНОВЛЕННАЯ) ---
+def find_deals(from_locations: List[str], durations: List[int], horizon_days: int, max_price: float) -> List[
+    Dict[str, Any]]:
+    print(
+        f"🚀 Начинаю новый API поиск: Из {from_locations}, Длительность: {durations}, Горизонт: {horizon_days} дней, Макс. цена: {max_price} EUR")
 
-def find_deals(from_location: str, durations: List[int], horizon_days: int, max_price: float) -> List[Dict[str, Any]]:
-    """
-    Основной процесс поиска дешевых авиабилетов на основе параметров API.
-    Возвращает отсортированный список найденных поездок.
-    """
-    print(f"🚀 Начинаю новый поиск API: Из '{from_location}', Длительность: {durations}, Горизонт: {horizon_days} дней, Макс. цена: {max_price} EUR")
-    
     all_routes = get_all_routes()
     airport_map, _ = get_airport_details()
 
     if not all_routes or not airport_map:
-        print("❌ Не удалось загрузить базовые данные. Прерываю поиск.")
         return []
 
-    # TODO: Реализовать полную логику для from_location (страны и города).
-    # Сейчас используем простую заглушку: если это известный ирландский аэропорт, ищем из него.
-    # В противном случае, ищем из всех ирландских аэропортов.
-    departure_airports = [from_location.upper()] if from_location.upper() in IRISH_AIRPORTS else IRISH_AIRPORTS
+    departure_airports = from_locations
 
     today = datetime.today().date()
     date_pairs = []
@@ -139,6 +106,7 @@ def find_deals(from_location: str, durations: List[int], horizon_days: int, max_
 
     with requests.Session() as session:
         for origin in departure_airports:
+            print(f"📍 Проверяю вылеты из: {airport_map.get(origin, origin)}")
             destinations = get_destinations_from(origin, all_routes)
             for dest in destinations:
                 for dep_date, ret_date in date_pairs:
@@ -147,7 +115,8 @@ def find_deals(from_location: str, durations: List[int], horizon_days: int, max_
 
                     outbound_cache_key = (origin, dest, dep_month_str)
                     if outbound_cache_key not in monthly_fares_cache:
-                        monthly_fares_cache[outbound_cache_key] = get_monthly_fares(session, origin, dest, dep_month_str)
+                        monthly_fares_cache[outbound_cache_key] = get_monthly_fares(session, origin, dest,
+                                                                                    dep_month_str)
 
                     inbound_cache_key = (dest, origin, ret_month_str)
                     if inbound_cache_key not in monthly_fares_cache:
@@ -162,24 +131,15 @@ def find_deals(from_location: str, durations: List[int], horizon_days: int, max_
                     if total <= max_price:
                         trip_info = {
                             "id": str(uuid.uuid4()),
-                            "departureAirport": {
-                                "code": origin,
-                                "city": airport_map.get(origin, origin).split(',')[0].strip()
-                            },
-                            "arrivalAirport": {
-                                "code": dest,
-                                "city": airport_map.get(dest, dest).split(',')[0].strip()
-                            },
+                            "departureAirport": {"code": origin,
+                                                 "city": airport_map.get(origin, origin).split(',')[0].strip()},
+                            "arrivalAirport": {"code": dest, "city": airport_map.get(dest, dest).split(',')[0].strip()},
                             "departureDate": dep_date.isoformat(),
                             "returnDate": ret_date.isoformat(),
                             "durationDays": (ret_date - dep_date).days,
-                            "price": {
-                                "value": round(total, 2),
-                                "currency": "EUR"
-                            }
+                            "price": {"value": round(total, 2), "currency": "EUR"}
                         }
                         found_trips.append(trip_info)
-    
-    print(f"🎉 Поиск завершен. Найдено совпадений: {len(found_trips)}")
 
+    print(f"🎉 Поиск завершен. Найдено совпадений: {len(found_trips)}")
     return sorted(found_trips, key=lambda x: x['price']['value'])
