@@ -143,3 +143,39 @@ def find_deals(from_locations: List[str], durations: List[int], horizon_days: in
 
     print(f"🎉 Поиск завершен. Найдено совпадений: {len(found_trips)}")
     return sorted(found_trips, key=lambda x: x['price']['value'])
+
+
+def get_all_airports() -> List[Dict[str, str]]:
+    """Читает данные об аэропортах и возвращает их в формате для API."""
+    airport_map, _ = get_airport_details()
+    if not airport_map:
+        return []
+
+    airport_list = []
+    for code, full_name in airport_map.items():
+        airport_list.append({"code": code, "name": full_name})
+
+    # Сортируем по имени для удобства
+    return sorted(airport_list, key=lambda x: x['name'])
+
+
+def get_locations_structured() -> Dict[str, List[Dict[str, str]]]:
+    """Возвращает структуру { "Страна": [{"code": "XXX", "name": "Город"}, ...], ... }."""
+    _, airport_to_country_map = get_airport_details()
+
+    locations = {}
+    for code, country in airport_to_country_map.items():
+        if country not in locations:
+            locations[country] = []
+
+        # Нам нужно полное имя аэропорта, возьмем его из другой карты
+        full_airport_map, _ = get_airport_details()
+        city_name = full_airport_map.get(code, code).split(',')[0].strip()
+
+        locations[country].append({"code": code, "name": city_name})
+
+    # Сортируем аэропорты внутри каждой страны по имени города
+    for country in locations:
+        locations[country] = sorted(locations[country], key=lambda x: x['name'])
+
+    return locations

@@ -26,3 +26,11 @@ class Deal(BaseModel):
 
 class DealResponse(BaseModel):
     data: List[Deal]
+    # --- Модели для списка аэропортов ---
+
+class AirportOption(BaseModel):
+    code: str
+    name: str
+
+class AirportListResponse(BaseModel):
+    data: List[AirportOption]
